@@ -1,0 +1,9 @@
+nimcache/
+nimblecache/
+htmldocs/
+
+main
+tests/**
+!tests/*.nim
+!tests/*.cfg
+main.exe

@@ -63,6 +63,7 @@ proc nextToken*(self: Lexer): Token =
       result = Token(typ: TokenType.EQ, literal: fmt"{ch}{self.ch}")
     else: result = newToken(TokenType.ASSIGN, $self.ch)
   of ';': result = newToken(TokenType.SEMICOLON, $self.ch)
+  of ':': result = newToken(TokenType.COLON, $self.ch)
   of '(': result = newToken(TokenType.LPAREN, $self.ch)
   of ')': result = newToken(TokenType.RPAREN, $self.ch)
   of ',': result = newToken(TokenType.COMMA, $self.ch)

@@ -126,13 +126,20 @@ suite "lexer.nim":
             (TokenType.STRING, "foobar"),
             (TokenType.STRING, "foo bar"),
         ],
-         "[1, 2];": @[
+        "[1, 2];": @[
             (TokenType.LBRACKET, "["),
             (TokenType.INT, "1"),
             (TokenType.COMMA, ","),
             (TokenType.INT, "2"),
             (TokenType.RBRACKET, "]"),
             (TokenType.SEMICOLON, ";"),
+        ],
+        "{\"foo\": \"bar\"}": @[
+            (TokenType.LBRACE, "{"),
+            (TokenType.STRING, "foo"),
+            (TokenType.COLON, ":"),
+            (TokenType.STRING, "bar"),
+            (TokenType.RBRACE, "}"),
         ],
     }.toTable;
     for text, tests in cases:

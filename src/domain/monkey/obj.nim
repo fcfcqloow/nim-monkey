@@ -1,13 +1,15 @@
-import std/sequtils
+import sequtils
 import strformat
 import strutils
 import tables
 import options
+import hashes
 
 import ast
 import domain/util/optionutils
 
 type 
+    HashKey*             = int
     ObjectType* {.pure.} = enum 
         _ = ""
         INTERGER_OBJ = "INTEGER"
@@ -19,10 +21,27 @@ type
         STRING_OBJ   = "STRING"
         BUILTIN_OBJ  = "BUILTIN"
         ARRAY_OBJ    = "ARRAY"
+        HASH_OBJ     = "HASH"
     Object* = ref object of RootObj
 method typ*(self: Object): ObjectType {.base.} =  ObjectType._
 method inspect*(self: Object): string {.base.} = ""
 method `$`*(self: Object): string {.base.} = "Object"
+method hashKey*(self: Object): HashKey {.base.} = raise
+proc hash*(self: HashKey): Hash = self
+
+type
+    HashPair* = ref object
+        key*, value*: Object
+    Hash* = ref object of Object
+        pairs*: Table[HashKey, HashPair]
+method typ*(self: Hash): ObjectType = ObjectType.HASH_OBJ
+method inspect*(self: Hash): string =
+    var strings: seq[string] = @[]
+    for k, pairs in self.pairs:
+        strings.add(pairs.key.inspect() & ": f" & pairs.value.inspect())
+    return "{" & strings.join(", ") & "}"
+method `$`*(self: Hash): string = self.inspect
+proc `$`*(self: HashPair): string = "<" & $self.key & ": (" & $self.value & ")>"
 
 type 
     BuiltinFunction* = proc (objects: varargs[Object]): Object
@@ -36,19 +55,31 @@ type Integer* = ref object of Object
     value*: int64
 method typ*(self: Integer): ObjectType =  ObjectType.INTERGER_OBJ
 method inspect*(self: Integer): string = $self.value
-method `$`*(self: Integer): string = $ObjectType.INTERGER_OBJ & "/" & $self.value
+method `$`*(self: Integer): string = $self.value
+method hashKey*(self: Integer): HashKey = 
+    var h: int = 0
+    h = h !& hash(self.value)
+    result = !$h
 
 type Boolean* = ref object of Object
     value*: bool
 method typ*(self: Boolean): ObjectType =  ObjectType.BOOLEAN_OBJ
 method inspect*(self: Boolean): string = $self.value
-method `$`*(self: Boolean): string = $ObjectType.BOOLEAN_OBJ & "/" & $self.value
+method `$`*(self: Boolean): string = $self.value
+method hashKey*(self: Boolean): HashKey = 
+    var h: int = 0
+    h = h !& hash(self.value)
+    result = !$h
 
 type String* = ref object of Object
     value*: string
 method typ*(self: String): ObjectType =  ObjectType.STRING_OBJ
 method inspect*(self: String): string = $self.value
-method `$`*(self: String): string = $ObjectType.STRING_OBJ & "/" & $self.value
+method `$`*(self: String): string = "\"" & self.value & "\""
+method hashKey*(self: String): HashKey = 
+    var h: int = 0
+    h = h !& hash(self.value)
+    result = !$h
 
 type Null* = ref object of Object
 method typ*(self: Null): ObjectType =  ObjectType.NULL_OBJ
@@ -102,3 +133,4 @@ method typ*(self: Array): ObjectType = ObjectType.ARRAY_OBJ
 method inspect*(self: Array): string = "[" & self.elements.mapIt(it.inspect()).join(", ") & "]"
 method `$`*(self: Array): string = self.inspect()
 
+proc isHashable*(o: obj.Object): bool = o of String or o of Integer or o of Boolean

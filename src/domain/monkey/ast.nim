@@ -1,7 +1,9 @@
-import std/strutils
-import std/sequtils
+import strutils
+import sequtils
 import options
 import strformat
+import tables
+import hashes
 
 import token
 
@@ -21,6 +23,7 @@ method tokenLiteral*(self: Node): string {.base.} =  self.token.literal
 method `$`*(self: Node): string {.base.} = self.token.literal
 method statementNode(self: Statement): void {.base.} = return
 method expressionNode*(self: Expression): void {.base.} = return
+proc hash*(self: Expression): Hash = self.token.hash
 
 type
     LetStatement* = ref object of Statement
@@ -68,7 +71,8 @@ type
     IndexExpression* = ref object of Expression
         left* : Expression
         index*: Expression
-
+    HashLiteral* = ref object of Expression
+        pairs*: Table[Expression, Expression]
 method `$`*(self: PrefixExpression): string = fmt"({$self.operator}{optString(self.right)})"
 method `$`*(self: InfixExpression): string = fmt"({optString(self.left)} {$self.operator} {optString(self.right)})"
 func `$`*(self: IfExpression): string = return 
@@ -80,7 +84,11 @@ func `$`*(self: FunctionLiteral): string =
 method `$`*(self: CallExpression): string = $self.function & "(" & self.arguments.mapIt($it).join(", ") & ")" 
 method `$`*(self: ArrayLiteral): string = "[" & self.elements.mapIt($it).join(", ") & "]"
 method `$`*(self: IndexExpression): string = fmt"({self.left}[{self.index}])"
-
+method `$`*(self: HashLiteral): string =
+    var strings: seq[string] = @[]
+    for k, v in self.pairs:
+        strings.add($k & ": " & $v)
+    return "{" & strings.join(", ") & "}"
 
 type Program* = ref object of Node
     statements*: seq[Statement]

@@ -1,5 +1,7 @@
 import unittest
 import options
+import hashes
+import tables
 
 import domain/monkey/ast
 import domain/monkey/obj
@@ -14,14 +16,15 @@ proc testEval(input: string): obj.Object =
 
     return evaluator.eval(ast.Node(program.get()), newEnviroment())
 
-func testInteger(o: obj.Object, exp: int64) = assert obj.Integer(o).value == exp, "expected: " & $exp & " but got: " & $obj.Integer(o).value
-func testBoolean(o: obj.Object, exp: bool) = assert obj.Boolean(o).value == exp, "expected: " & $exp & " but got: " & $obj.Boolean(o).value
-func testNull(o: obj.Object) = assert isSame(o, obj.Null()), "expected: null but got: " & $obj.Boolean(o).value
-func testReturn(o: Object, exp: Object) = assert isSame(o, exp), "expected: " & $exp & " but got: " & $obj.Return(o).value
-func testError(o: Object, exp: string) = assert obj.Error(o).message == exp, "expected: " & $exp & " but got: " & obj.Error(o).message
-func testFunction(o: Object, exp: string) = assert $obj.Function(o) == exp, "expected: " & $exp & " but got: " & $obj.Function(o)
-func testString(o: Object, exp: string) = assert obj.String(o).value == exp, "expected: " & $exp & " but got: " & obj.String(o).value
-func testArray(o: Object, exp: string) = assert $obj.Array(o) == exp, "expected: " & $exp & " but got: " & $obj.Array(o)
+func testInteger(o: obj.Object, exp: int64) = assert obj.Integer(o).value == exp, "expected: `" & $exp & "` but got: `" & $obj.Integer(o).value & "`"
+func testBoolean(o: obj.Object, exp: bool) = assert obj.Boolean(o).value == exp, "expected: `" & $exp & "` but got: `" & $obj.Boolean(o).value & "`"
+func testNull(o: obj.Object) = assert isSame(o, obj.Null()), "expected: null but got: `" & $o & "`"
+func testReturn(o: Object, exp: Object) = assert isSame(o, exp), "expected: `" & $exp & "` but got: `" & $obj.Return(o).value & "`"
+func testError(o: Object, exp: string) = assert obj.Error(o).message == exp, "expected: `" & $exp & "` but got: `" & obj.Error(o).message & "`"
+func testFunction(o: Object, exp: string) = assert $obj.Function(o) == exp, "expected: `" & $exp & "` but got: `" & $obj.Function(o) & "`"
+func testString(o: Object, exp: string) = assert obj.String(o).value == exp, "expected: `" & $exp & "` but got: `" & obj.String(o).value & "`"
+func testArray(o: Object, exp: string) = assert $obj.Array(o) == exp, "expected: `" & $exp & "` but got: `" & $obj.Array(o) & "`"
+func testHash(o: Object, exp: string) = assert $obj.Hash(o) == exp, "expected: `" & $exp & "` but got: `" & $obj.Hash(o) & "`"
 
 suite "evaluator.nim statement":
     const tests = {
@@ -165,6 +168,7 @@ suite "evaluator.nim statement":
                 return 1;
                 """,
                 "\"Hello\" - \"Hello\"",
+                "{\"name\": \"Monkey\"}[fn(x) { x }]",
             ],
             proc (o: obj.Object, idx: int) {.noSideEffect, gcsafe, locks: 0.} =
                 case idx:
@@ -176,6 +180,7 @@ suite "evaluator.nim statement":
                 of 5: testError(o, "unknown operator: BOOLEAN + BOOLEAN")
                 of 6: testError(o, "unknown operator: BOOLEAN + BOOLEAN")
                 of 7: testError(o, "unknown operator: STRING - STRING")
+                of 8: testError(o, "unusable as hash key FUNCTION")
                 else: raise
         ),
         "Eval FUNCTION": (
@@ -303,7 +308,52 @@ suite "evaluator.nim statement":
                 of 12: testInteger(o, 15)
                 else: raise
         ),
-
+        "Eval HASH INDEX": (
+            @[
+                "{\"foo\": 5}[\"foo\"]",
+                """
+                let two = "two";
+                {
+                    "one": 10 - 9,
+                    two: 1 + 1,
+                    "thr" + "ee": 6 / 2,
+                    4: 4,
+                    true: 5,
+                    false: 6,
+                }
+                """,
+                "{\"foo\": 5}[\"foo\"]",
+                "{\"foo\": 5}[\"bar\"]",
+                "let key = \"foo\"; {\"foo\": 5}[key]",
+                "{}[\"foo\"]",
+                "{5: 5}[5]",
+                "{true: 5}[true]",
+                "{false: 5}[false]",
+            ],
+            proc (o: obj.Object, idx: int) =
+                case idx:
+                of 0: testInteger(o, 5)
+                of 1: 
+                    let expected = {
+                        obj.String(value: "one").hashKey   : 1,
+                        obj.String(value: "two").hashKey   : 2,
+                        obj.String(value: "three").hashKey : 3,
+                        obj.Integer(value: 4).hashKey      : 4,
+                        obj.Boolean(value: true).hashKey   : 5,
+                        obj.Boolean(value: false).hashKey  : 6,
+                    }.toTable
+                    for k, v in expected:
+                        let pair = obj.Hash(o).pairs[k]
+                        testInteger(pair.value, v)
+                of 2: testInteger(o, 5)
+                of 3: testNull(o)
+                of 4: testInteger(o, 5)
+                of 5: testNull(o)
+                of 6: testInteger(o, 5)
+                of 7: testInteger(o, 5)
+                of 8: testInteger(o, 5)
+                else: raise
+        ),
     }
     for t in tests:
         let title = t[0]

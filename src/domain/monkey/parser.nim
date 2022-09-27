@@ -2,7 +2,6 @@ import options
 import strformat
 import strutils
 import std/tables
-import macros
 
 import aop/log
 import lexer, token, ast
@@ -75,11 +74,11 @@ proc parseBlockStatement(self: Parser): Option[ast.BlockStatement]
 proc parseFunctionParameters(self: Parser): seq[Option[ast.Identifier]]
 proc parseFunctionLiteral(self: Parser): Option[ast.Expression]
 proc parseCallExpression(self: Parser, fun: ast.Expression): ast.Expression
-proc parseCallArguments(self: Parser): seq[ast.Expression]
 proc parseString(self: Parser): ast.Expression
 proc parseArrayLiteral(self: Parser): ast.Expression
 proc parseExpressionList(self: Parser, endToken: token.TokenType): seq[ast.Expression]
 proc parseIndexExpression(self: Parser, left: ast.Expression): Option[ast.Expression]
+proc parseHashLiteral(self: Parser):  Option[ast.Expression]
 
 func curTokenIs(self: Parser, t: token.TokenType): bool
 func peekTokenIs(self: Parser, t: token.TokenType): bool
@@ -105,6 +104,7 @@ proc newParser*(lexer: lexer.ILexer): IParser =
     registerPrefix(token.TokenType.FUNCTION, proc(): ast.Expression = toExpression(parser.parseFunctionLiteral()))
     registerPrefix(token.TokenType.STRING, proc(): ast.Expression = parser.parseString())
     registerPrefix(token.TokenType.LBRACKET, proc(): ast.Expression = parser.parseArrayLiteral())
+    registerPrefix(token.TokenType.LBRACE, proc(): ast.Expression = toExpression(parser.parseHashLiteral()))
 
     proc registerInfix(t: token.TokenType, fn: infixParseFn) = parser.infixParseFns[t] = fn
     registerInfix(token.TokenType.PLUS, proc(e: ast.Expression): ast.Expression = parser.parseInfixExpression(option(e)))
@@ -157,10 +157,10 @@ proc parseProgram(self: Parser): Option[ast.Program] =
     return option(program)
 
 proc parseStatement(self: Parser): Option[ast.Statement] = 
-    case self.curToken.typ:
-    of token.TokenType.LET: return self.parseLetStatement()
-    of token.TokenType.RETURN: return self.parseReturnStatement()
-    else: return self.parseExpressionStatement()
+    return case self.curToken.typ:
+    of token.TokenType.LET:    self.parseLetStatement()
+    of token.TokenType.RETURN: self.parseReturnStatement()
+    else:                      self.parseExpressionStatement()
 
 proc parseLetStatement(self: Parser): Option[ast.Statement] =
     let msg = trace("parseLetStatement")
@@ -172,7 +172,6 @@ proc parseLetStatement(self: Parser): Option[ast.Statement] =
         return none[ast.Statement]()
     
     letStmt.name = ast.Identifier(token: self.curToken, value: self.curToken.literal)
-    debug("let name: " & self.curToken.literal)
 
     if not self.expectPeek(token.TokenType.ASSIGN):
         return none[ast.Statement]()
@@ -180,7 +179,6 @@ proc parseLetStatement(self: Parser): Option[ast.Statement] =
     self.nextToken()
 
     letStmt.value = self.parseExpression(Priority.LOWEST)
-    debug("let value: " & $letStmt.value)
     if self.peekTokenIs(token.TokenType.SEMICOLON):
         self.nextToken()
 
@@ -377,29 +375,6 @@ proc parseCallExpression(self: Parser, fun: ast.Expression): ast.Expression =
     exp.arguments = self.parseExpressionList(token.TokenType.RPAREN)
     return exp
 
-proc parseCallArguments(self: Parser): seq[ast.Expression] =
-    let msg = trace("parseCallArguments")
-    defer: untrace(msg & ": " & $result)
-
-    var args: seq[ast.Expression] = @[]
-
-    if self.peekTokenIs(token.TokenType.RPAREN):
-        self.nextToken()
-        return args
-
-    self.nextToken()
-    args.add(self.parseExpression(Priority.LOWEST).get())
-
-    while self.peekTokenIs(token.TokenType.COMMA):
-        self.nextToken()
-        self.nextToken()
-        args.add(self.parseExpression(Priority.LOWEST).get())
-
-    if not self.expectPeek(token.TokenType.RPAREN):
-        return @[]
-
-    return args
-
 proc parseString(self: Parser): ast.Expression =
     let msg = trace("parseString")
     defer: untrace(msg & ": " & $result)
@@ -447,6 +422,32 @@ proc parseIndexExpression(self: Parser, left: ast.Expression): Option[ast.Expres
         return none[ast.Expression]()
 
     return option(ast.Expression(exp))
+
+proc parseHashLiteral(self: Parser):  Option[ast.Expression] =
+    let msg = trace("parseHashLiteral")
+    defer: untrace(msg & ": " & $result)
+
+    let h = ast.HashLiteral(token: self.curToken)
+    h.pairs = initTable[ast.Expression, ast.Expression]()
+    
+    while not self.peekTokenIs(token.TokenType.RBRACE):
+        self.nextToken()
+        let key = self.parseExpression(Priority.LOWEST)
+        if not self.expectPeek(token.TokenType.COLON):
+            return none[ast.Expression]()
+
+        self.nextToken()
+        let value = self.parseExpression(Priority.LOWEST)
+        
+        h.pairs[key.get()] = value.get()
+
+        if not self.peekTokenIs(token.TokenType.RBRACE) and not self.expectPeek(token.TokenType.COMMA):
+            return none[ast.Expression]()
+
+    if not self.expectPeek(token.TokenType.RBRACE):
+        return none[ast.Expression]()
+
+    return option(ast.Expression(h))
 
 func curTokenIs(self: Parser, t: token.TokenType): bool = self.curToken.typ == t
 func peekTokenIs(self: Parser, t: token.TokenType): bool =  self.peekToken.typ == t

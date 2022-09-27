@@ -2,25 +2,35 @@ import unittest
 import options
 import std/typeinfo
 import strformat
-
+import tables
 import domain/monkey/lexer
 import domain/monkey/parser
 import domain/monkey/ast
 
 var 
-    one   = 1
-    two   = 2
-    three = 3
-    x     = "x"
-    y     = "y"
-    z     = "z"
+    zero    = 0
+    one     = 1
+    two     = 2
+    three   = 3
+    five    = 5
+    eight   = 8
+    teen    = 10
+    fifteen = 15
+    x       = "x"
+    y       = "y"
+    z       = "z"
 let
-    ONE   = one.toAny
-    TWO   = two.toAny
-    THREE = three.toAny
-    X     = x.toAny
-    Y     = y.toAny
-    Z     = z.toAny
+    ZERO    = zero.toAny
+    ONE     = one.toAny
+    TWO     = two.toAny
+    THREE   = three.toAny
+    FIVE    = five.toAny
+    EIGHT   = eight.toAny
+    TEEN    = teen.toAny
+    FIFTEEN = fifteen.toAny
+    X       = x.toAny
+    Y       = y.toAny
+    Z       = z.toAny
 
 proc testIdentifier(exp: ast.Expression, value: string) =
     let indetExp = ast.Identifier(exp)
@@ -75,7 +85,7 @@ suite "parser.nim statement":
             ("add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))","add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"),
             ("add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"),
             ("[1, 2 * 3]", "[1, (2 * 3)]"),
-            ("a * [1, 2, 3, 4][1] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)"),
+            ("a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)"),
             ("add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))"),
         ]
         for values in cases:
@@ -289,6 +299,32 @@ suite "parser.nim statement":
                 testInfixExpression(arr.elements[1], TWO, "*", TWO)
                 testInfixExpression(arr.elements[2], THREE, "+", THREE)
         ),
+        "parse hashmap": (
+            @[
+                "{\"one\": 1, \"two\": 2, \"three\": 3}",
+                "{}",
+                "{\"one\": 0 + 1, \"two\": 10 - 8, \"three\": 15 / 5}",
+            ], 
+            1,
+            proc(statements: seq[ast.Statement], inputIdx: int): void =
+                let smt = ast.ExpressionStatement(statements[0])
+                let hash = ast.HashLiteral(smt.expression.get())
+                
+                case inputIdx:
+                of 0:
+                    for k, v in hash.pairs:
+                        let literal = ast.StringLiteral(k)
+                        testIntegerLiteral(v, { "one": 1, "two": 2, "three": 3 }.toTable[$literal])
+                of 1: assert hash.pairs.len == 0
+                of 2:
+                    for k, v in hash.pairs:
+                        let literal = ast.StringLiteral(k)
+                        case $literal:
+                        of "one": testInfixExpression(v, ZERO, "+", ONE)
+                        of "two": testInfixExpression(v, TEEN, "-", EIGHT)
+                        of "three": testInfixExpression(v, FIFTEEN, "/", FIVE)
+                else: raise
+        ),
     }
     for value in tests:
         let title = value[0]
@@ -298,7 +334,6 @@ suite "parser.nim statement":
                 let l = newLexer(input)
                 let p = parser.newParser(l)
                 let program = p.parseProgram()
-
                 assert not program.isNone(), "expected not program.isNone()"
                 assert program.get().statements.len == values[1], "expected length: " & $values[1] & ", but " & $program.get().statements.len
 

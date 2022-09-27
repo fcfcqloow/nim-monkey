@@ -2,46 +2,44 @@ import options
 import strformat
 import segfaults
 import tables
-import sequtils
 
 import aop/log
 import ast
 import obj
 
-let NULL* =  obj.Object(obj.Null())
-let TRUE* = obj.Object(obj.Boolean(value: true))
-let FALSE* =  obj.Object(obj.Boolean(value: false))
+let 
+    NULL*  = obj.Object(obj.Null())
+    TRUE*  = obj.Object(obj.Boolean(value: true))
+    FALSE* = obj.Object(obj.Boolean(value: false))
 
 func isError(o: obj.Object): bool = o.typ() == obj.ObjectType.ERROR_OBJ
 func isSame*(a: obj.Object, b: obj.Object): bool =
-    if a.typ() != b.typ(): return false
-    case a.typ():
-    of obj.ObjectType.INTERGER_OBJ: return obj.Integer(a).value == obj.Integer(b).value
-    of obj.ObjectType.BOOLEAN_OBJ: return a == b
-    of obj.ObjectType.NULL_OBJ: return true
+    if a.typ != b.typ: return false
+    return case a.typ:
+    of obj.ObjectType.INTERGER_OBJ: obj.Integer(a).value == obj.Integer(b).value
+    of obj.ObjectType.BOOLEAN_OBJ: a == b
+    of obj.ObjectType.NULL_OBJ: true
     else: raise
 
 proc isTruthy(o: obj.Object): bool = 
-    if isSame(o, NULL): return false
-    if isSame(o, TRUE): return true
-    if isSame(o, FALSE): return false
-    return true
+    return if isSame(o, NULL): false
+    elif isSame(o, TRUE): true
+    elif isSame(o, FALSE): false
+    else: true
 
 proc nativeBoolToBooleanObject(v: bool): obj.Object =
-    if v: return TRUE
-    else: return FALSE
+    return if v: TRUE else: FALSE
 
 let builtin* = {
     "len" : obj.Builtin(
         fn: proc(objects: varargs[obj.Object]): obj.Object =
-            if len(objects) != 1:
-                return obj.Error(message: fmt"wrong number of arguments, get={len(objects)}, want=1")
+            return if len(objects) != 1:
+                obj.Error(message: fmt"wrong number of arguments, get={len(objects)}, want=1")
             elif objects[0] of obj.String:
-                return obj.Integer(value: obj.String(objects[0]).value.len)
+                obj.Integer(value: obj.String(objects[0]).value.len)
             elif objects[0] of obj.Array:
-                return obj.Integer(value: obj.Array(objects[0]).elements.len)
-            else:
-                return obj.Error(message: fmt"argument to `len` not supported, got {objects[0].typ()}")
+                obj.Integer(value: obj.Array(objects[0]).elements.len)
+            else: obj.Error(message: fmt"argument to `len` not supported, got {objects[0].typ()}")
     ),
     "first": obj.Builtin(
         fn: proc(objects: varargs[obj.Object]): obj.Object =
@@ -85,11 +83,16 @@ let builtin* = {
 
             return arr
     ),
+    "puts": obj.Builtin(
+        fn: proc(objects: varargs[obj.Object]): obj.Object =
+            for o in objects:
+                echo o
+            return NULL
+    ),
 }.toTable
 
 proc eval*(node: Node, env: obj.Environment): obj.Object
 proc evalProgram(program: ast.Program, env: obj.Environment): obj.Object
-proc evalStatements(stmts: seq[ast.Statement], env: obj.Environment): obj.Object
 proc evalBlockStatement(blk: ast.BlockStatement, env: obj.Environment): obj.Object
 proc evalPrefixExpression(operator: string, right: obj.Object, env: obj.Environment): obj.Object
 proc evalBangOperatorExpression(right: obj.Object, env: obj.Environment): obj.Object
@@ -105,7 +108,8 @@ proc applyFunction(fn: obj.Object, args: seq[obj.Object]): obj.Object
 proc evalStringInfixExpression(operator: string, left, right: obj.Object): obj.Object
 proc evalArrayIndexExpression(arr: obj.Object, index: obj.Object): obj.Object
 proc evalIndexExpression(left: obj.Object, index: obj.Object): obj.Object
-
+proc evalHashLiteral(node: ast.HashLiteral, env: obj.Environment): obj.Object
+proc evalHashIndexExpression(h: obj.Object, index: obj.Object): obj.Object
 proc eval*(node: Node, env: obj.Environment): obj.Object =
     var debugInstance = ""
     let debugType = proc (typ: string) = 
@@ -202,6 +206,7 @@ proc eval*(node: Node, env: obj.Environment): obj.Object =
         return obj.Array(elements: elements)
     
     elif node of ast.IndexExpression:
+        debugType("ast.IndexExpression")
         let nodeIndex = ast.IndexExpression(node)
         let left = eval(nodeIndex.left, env)
         if isError(left):
@@ -212,7 +217,11 @@ proc eval*(node: Node, env: obj.Environment): obj.Object =
             return index
 
         return evalIndexExpression(left, index)
-
+    
+    elif node of ast.HashLiteral:
+        debugType("ast.HashLiteral")
+        return evalHashLiteral(ast.HashLiteral(node), env)
+    
     else:
         debug($node & " is unknown")
         return obj.Object()
@@ -232,47 +241,37 @@ proc evalBlockStatement(blk: ast.BlockStatement, env: obj.Environment): obj.Obje
         if typ == obj.ObjectType.RETURN_OBJ or typ == obj.ObjectType.ERROR_OBJ:
             return result
 
-proc evalStatements(stmts: seq[ast.Statement], env: obj.Environment): obj.Object =
-    defer: debug("evalStatements: " & $result)
-    for smt in stmts:
-        result = eval(smt, env)
-        if result of obj.Return:
-            return obj.Return(result).value
-
 proc evalPrefixExpression(operator: string, right: obj.Object, env: obj.Environment): obj.Object =
-    defer: debug("evalPrefixExpression: " & $result)
     return case operator
         of "!": evalBangOperatorExpression(right, env)
         of "-": evalMinusPrefixOperatorExpression(operator, right, env)
         else:   obj.Error(message: fmt"unknown operator: {operator} {right.typ()}")
 
 proc evalMinusPrefixOperatorExpression(operator: string, right: obj.Object, env: obj.Environment): obj.Object =
-    defer: debug("evalMinusPrefixOperatorExpression: " & $result)
     if right.typ() != obj.ObjectType.INTERGER_OBJ:
         return obj.Error(message: fmt"not integer: -{right.typ()}")
     let value = obj.Integer(right).value
     return obj.Object(obj.Integer(value: -value))
 
 proc evalBangOperatorExpression(right: obj.Object, env: obj.Environment): obj.Object =
-    defer: debug("evalBangOperatorExpression: " & $result)
     return
-        if right == TRUE: FALSE
+        if right == TRUE:    FALSE
         elif right == FALSE: TRUE
-        elif right == NULL: TRUE
-        else: FALSE
+        elif right == NULL:  TRUE
+        else:                FALSE
 
 proc evalInfixExpression(left: obj.Object, operator: string, right: obj.Object, env: obj.Environment): obj.Object =
-    if left.typ() != right.typ():
-        return obj.Error(message: fmt"type mismatch: {left.typ()} {operator} {right.typ()}")
+    return if left.typ() != right.typ():
+        obj.Error(message: fmt"type mismatch: {left.typ()} {operator} {right.typ()}")
     elif left.typ() == obj.ObjectType.STRING_OBJ and right.typ() == obj.ObjectType.STRING_OBJ:
-        return evalStringInfixExpression(operator, left, right)
+        evalStringInfixExpression(operator, left, right)
     elif left.typ() == obj.ObjectType.INTERGER_OBJ and right.typ() == obj.ObjectType.INTERGER_OBJ:
-        return evalIntegerInfixExpression(left, operator, right, env)
+        evalIntegerInfixExpression(left, operator, right, env)
     elif operator == "==":
-        return nativeBoolToBooleanObject(isSame(left, right))
+        nativeBoolToBooleanObject(isSame(left, right))
     elif operator == "!=":
-        return nativeBoolToBooleanObject(not isSame(left, right))
-    return obj.Error(message: fmt"unknown operator: {left.typ()} {operator} {right.typ()}")
+        nativeBoolToBooleanObject(not isSame(left, right))
+    else: obj.Error(message: fmt"unknown operator: {left.typ()} {operator} {right.typ()}")
 
 proc evalIntegerInfixExpression(left: obj.Object, operator: string, right: obj.Object, env: obj.Environment): obj.Object =
     let left = obj.Integer(left).value
@@ -286,10 +285,9 @@ proc evalIntegerInfixExpression(left: obj.Object, operator: string, right: obj.O
     of ">":  nativeBoolToBooleanObject(left > right)
     of "==": nativeBoolToBooleanObject(left == right)
     of "!=": nativeBoolToBooleanObject(left != right)
-    else:  NULL
+    else:    NULL
 
 proc evalIfExpression(ie: ast.IfExpression, env: obj.Environment): obj.Object =
-    defer: debug("evalIfExpression: " & $result)
     let condition = eval(ie.condition, env)
     return if isError(condition): condition
     elif isTruthy(condition):     eval(ie.consequence.get(), env)
@@ -313,15 +311,14 @@ proc evalExpressions(exps: seq[ast.Expression], env: obj.Environment): seq[obj.O
         result.add(evaluated)
 
 proc applyFunction(fn: obj.Object, args: seq[obj.Object]): obj.Object =
-    if fn of obj.Function:
+    return if fn of obj.Function:
         let function = obj.Function(fn)
         let extendedEnv = extendFunctionEnv(function, args)
         let evaluated = eval(function.body.get(), extendedEnv)
-        return unwraoReturnValue(evaluated)
+        unwraoReturnValue(evaluated)
     elif fn of obj.Builtin:
-        return obj.Builtin(fn).fn(args)
-    return obj.Error(message: "not a function: " & $fn)
-   
+        obj.Builtin(fn).fn(args)
+    else: obj.Error(message: "not a function: " & $fn)
 
 proc extendFunctionEnv(fn: obj.Function, args: seq[obj.Object]): obj.Environment =
     let env = obj.newEnclosedEnviroment(fn.env)
@@ -330,8 +327,7 @@ proc extendFunctionEnv(fn: obj.Function, args: seq[obj.Object]): obj.Environment
     return env
 
 proc unwraoReturnValue(o: obj.Object): obj.Object =
-    if o of obj.Return: return obj.Return(o).value
-    return o
+    return if o of obj.Return: obj.Return(o).value else: o
 
 proc evalStringInfixExpression(operator: string, left, right: obj.Object): obj.Object =
     if operator != "+":
@@ -342,9 +338,11 @@ proc evalStringInfixExpression(operator: string, left, right: obj.Object): obj.O
     return obj.String(value: leftVal & rightVal)
 
 proc evalIndexExpression(left: obj.Object, index: obj.Object): obj.Object =
-    if left.typ() == obj.ObjectType.ARRAY_OBJ and index.typ() == obj.ObjectType.INTERGER_OBJ:
-        return evalArrayIndexExpression(left, index)
-    return Error(message: "index operator not supported: " & $left.typ())
+    return if left.typ() == obj.ObjectType.ARRAY_OBJ and index.typ() == obj.ObjectType.INTERGER_OBJ:
+        evalArrayIndexExpression(left, index)
+    elif left.typ() == obj.ObjectType.HASH_OBJ:
+        evalHashIndexExpression(left, index)
+    else: Error(message: "index operator not supported: " & $left.typ())
 
 proc evalArrayIndexExpression(arr: obj.Object, index: obj.Object): obj.Object =
     let arrayObj = obj.Array(arr)
@@ -356,3 +354,32 @@ proc evalArrayIndexExpression(arr: obj.Object, index: obj.Object): obj.Object =
         else: 
             arrayObj.elements[idx]
 
+proc evalHashLiteral(node: ast.HashLiteral, env: obj.Environment): obj.Object =
+    var pairs = initTable[obj.HashKey, obj.HashPair]()
+    for keyNode, valueNode in node.pairs:
+        let key = eval(keyNode, env)
+        if isError(key):
+            return key
+
+        if not obj.isHashable(key):
+            return Error(message: "unusable as hash key: " & $key)
+
+        let value = eval(valueNode, env)
+        if isError(value):
+            return value
+
+        let hashed = key.hashKey
+        pairs[hashed] = obj.HashPair(key: key, value: value)
+
+    return obj.Hash(pairs: pairs)
+
+proc evalHashIndexExpression(h: obj.Object, index: obj.Object): obj.Object =
+    let hashObj = obj.Hash(h)
+
+    if not obj.isHashable(index):
+        return Error(message: "unusable as hash key " & $index.typ())
+
+    if not hashObj.pairs.hasKey(index.hashkey):
+        return NULL
+
+    return hashObj.pairs[index.hashkey].value

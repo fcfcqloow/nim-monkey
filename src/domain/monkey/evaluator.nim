@@ -17,15 +17,15 @@ func isSame*(a: obj.Object, b: obj.Object): bool =
     if a.typ != b.typ: return false
     return case a.typ:
     of obj.ObjectType.INTERGER_OBJ: obj.Integer(a).value == obj.Integer(b).value
-    of obj.ObjectType.BOOLEAN_OBJ: a == b
-    of obj.ObjectType.NULL_OBJ: true
+    of obj.ObjectType.BOOLEAN_OBJ:  a == b
+    of obj.ObjectType.NULL_OBJ:     true
     else: raise
 
 proc isTruthy(o: obj.Object): bool = 
     return if isSame(o, NULL): false
-    elif isSame(o, TRUE): true
-    elif isSame(o, FALSE): false
-    else: true
+    elif isSame(o, TRUE):      true
+    elif isSame(o, FALSE):     false
+    else:                      true
 
 proc nativeBoolToBooleanObject(v: bool): obj.Object =
     return if v: TRUE else: FALSE
@@ -191,8 +191,7 @@ proc eval*(node: Node, env: obj.Environment): obj.Object =
 
     elif node of ast.Boolean:
         debugType("ast.Boolean")
-        if ast.Boolean(node).value: return TRUE
-        return FALSE
+        return nativeBoolToBooleanObject(ast.Boolean(node).value)
     
     elif node of ast.StringLiteral:
         debugType("ast.StringLiteral")
@@ -201,9 +200,10 @@ proc eval*(node: Node, env: obj.Environment): obj.Object =
     elif node of ast.ArrayLiteral:
         debugType("ast.ArrayLiteral")
         let elements = evalExpressions(ast.ArrayLiteral(node).elements, env)
-        if elements.len == 1 and isError(elements[0]):
-            return elements[0]
-        return obj.Array(elements: elements)
+        return if elements.len == 1 and isError(elements[0]):
+            elements[0]
+        else:
+            obj.Array(elements: elements)
     
     elif node of ast.IndexExpression:
         debugType("ast.IndexExpression")

@@ -119,8 +119,8 @@ proc put*(self: Environment, name: string, value: Object): Object =
 
 type Function* = ref object of Object
     parameters*: seq[Option[ast.Identifier]]
-    body*: Option[ast.BlockStatement]
-    env*: Option[Environment]
+    body*:       Option[ast.BlockStatement]
+    env*:        Option[Environment]
 method typ*(self: Function): ObjectType =  ObjectType.FUNCTION_OBJ
 proc inspect*(self: Function): string = 
     let pStr = self.parameters.map(proc(p: Option[ast.Identifier]): string = optionutils.optString(p)).join(", ")

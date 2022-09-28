@@ -25,31 +25,31 @@ type Priority* {.pure.} = enum
     INDEX
 
 const precedences = {
-    token.TokenType.LPAREN: Priority.CALL,
-    token.TokenType.EQ: Priority.EQUALS,
-    token.TokenType.NOT_EQ: Priority.EQUALS,
-    token.TokenType.LT: Priority.LESSGREATER,
-    token.TokenType.GT: Priority.LESSGREATER,
-    token.TokenType.PLUS: Priority.SUM,
-    token.TokenType.MINUS: Priority.SUM,
-    token.TokenType.SLASH: Priority.PRODUCT,
+    token.TokenType.LPAREN:   Priority.CALL,
+    token.TokenType.EQ:       Priority.EQUALS,
+    token.TokenType.NOT_EQ:   Priority.EQUALS,
+    token.TokenType.LT:       Priority.LESSGREATER,
+    token.TokenType.GT:       Priority.LESSGREATER,
+    token.TokenType.PLUS:     Priority.SUM,
+    token.TokenType.MINUS:    Priority.SUM,
+    token.TokenType.SLASH:    Priority.PRODUCT,
     token.TokenType.ASTERISC: Priority.PRODUCT,
     token.TokenType.LBRACKET: Priority.INDEX,
 }.toTable
 
 type
     prefixParseFn = proc(): ast.Expression
-    infixParseFn = proc(exp: ast.Expression): ast.Expression
-    IParser* = tuple
+    infixParseFn  = proc(exp: ast.Expression): ast.Expression
+    IParser*      = tuple
         parseProgram : proc(): Option[ast.Program]
-        errors       : proc(): seq[ast.AstException]
+        errors:        proc(): seq[ast.AstException]
     Parser = ref object
-        lexer: lexer.ILexer
-        curToken: token.Token
-        peekToken: token.Token
-        errs: seq[ast.AstException]
+        lexer:          lexer.ILexer
+        curToken:       token.Token
+        peekToken:      token.Token
+        errs:           seq[ast.AstException]
         prefixParseFns: Table[token.TokenType, prefixParseFn]
-        infixParseFns: Table[token.TokenType, infixParseFn]
+        infixParseFns:  Table[token.TokenType, infixParseFn]
 
 proc nextToken(self: Parser) 
 proc expectPeek(self: Parser, t: token.TokenType): bool 
@@ -80,8 +80,8 @@ proc parseExpressionList(self: Parser, endToken: token.TokenType): seq[ast.Expre
 proc parseIndexExpression(self: Parser, left: ast.Expression): Option[ast.Expression]
 proc parseHashLiteral(self: Parser):  Option[ast.Expression]
 
-func curTokenIs(self: Parser, t: token.TokenType): bool
-func peekTokenIs(self: Parser, t: token.TokenType): bool
+func curTokenIs(self: Parser, t: token.TokenType): bool  = self.curToken.typ == t
+func peekTokenIs(self: Parser, t: token.TokenType): bool =  self.peekToken.typ == t
 
 proc newParser*(lexer: lexer.ILexer): IParser = 
     let parser = Parser(
@@ -120,11 +120,11 @@ proc newParser*(lexer: lexer.ILexer): IParser =
 
     return (
         parseProgram: proc(): Option[ast.Program] = parser.parseProgram(),
-        errors: proc(): seq[ast.AstException] =  parser.errs
+        errors: proc():       seq[ast.AstException] =  parser.errs
     );
 
 proc nextToken(self: Parser) = 
-    self.curToken = self.peekToken
+    self.curToken  = self.peekToken
     self.peekToken = self.lexer.nextToken()
 
 proc expectPeek(self: Parser, t: token.TokenType): bool =
@@ -150,10 +150,6 @@ proc parseProgram(self: Parser): Option[ast.Program] =
             program.statements.add(smt.get())
             debug("add statements: " & $smt.get())
         self.nextToken()
-
-    # for smt in program.statements:
-    #     echo $smt
-
     return option(program)
 
 proc parseStatement(self: Parser): Option[ast.Statement] = 
@@ -192,8 +188,6 @@ proc parseReturnStatement(self: Parser): Option[ast.Statement] =
     self.nextToken()
 
     returnStmt.value = self.parseExpression(Priority.LOWEST)
-    debug("return value: " & $returnStmt.value)
-
     if self.peekTokenIs(token.TokenType.SEMICOLON):
         self.nextToken()
 
@@ -218,13 +212,11 @@ proc parseExpression(self: Parser, priority: Priority): Option[ast.Expression] =
         return none[ast.Expression]()
 
     let prefix = self.prefixParseFns[self.curToken.typ]
-    debug("prefix: " & $self.curToken.typ)
     var leftExp = prefix()
     while not self.peekTokenIs(token.TokenType.SEMICOLON) and ord(priority) < ord(self.peekPrecedence()):
         if not self.infixParseFns.hasKey(self.peekToken.typ):
             return option(leftExp)
         let infix = self.infixParseFns[self.peekToken.typ]
-        debug("infix: " & $self.peekToken.typ)
         self.nextToken()
         leftExp = infix(leftExp)
 
@@ -258,9 +250,9 @@ proc parseInfixExpression(self: Parser, left: Option[ast.Expression]): ast.Expre
     defer: untrace(msg & ": " & $result)
 
     let expressoion = ast.InfixExpression(
-        token: self.curToken, 
+        token:    self.curToken, 
         operator: self.curToken.literal,
-        left: left,
+        left:     left,
     )
     let precedence = self.curPrecedence()
     self.nextToken()
@@ -448,6 +440,3 @@ proc parseHashLiteral(self: Parser):  Option[ast.Expression] =
         return none[ast.Expression]()
 
     return option(ast.Expression(h))
-
-func curTokenIs(self: Parser, t: token.TokenType): bool = self.curToken.typ == t
-func peekTokenIs(self: Parser, t: token.TokenType): bool =  self.peekToken.typ == t

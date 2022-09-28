@@ -32,8 +32,10 @@ proc newLexer*(input: string): ILexer =
   )
 
 proc peek(self: Lexer): char =
-  return if self.readPosition >= self.input.len: '\0'
-  else: char(self.input[self.readPosition])
+  return if self.readPosition >= self.input.len:
+    '\0'
+  else: 
+    char(self.input[self.readPosition])
 
 proc next(self: Lexer): void =
   if self.readPosition >= self.input.len:
@@ -75,15 +77,15 @@ proc nextToken*(self: Lexer): Token =
       self.next()
       result = Token(typ: TokenType.NOT_EQ, literal: fmt"{ch}{self.ch}")
     else: result = newToken(TokenType.BANG, $self.ch)
-  of '/': result = newToken(TokenType.SLASH, $self.ch)
-  of '*': result = newToken(TokenType.ASTERISC, $self.ch)
-  of '<': result = newToken(TokenType.LT, $self.ch)
-  of '>': result = newToken(TokenType.GT, $self.ch)
-  of '{': result = newToken(TokenType.LBRACE, $self.ch)
-  of '}': result = newToken(TokenType.RBRACE, $self.ch)
-  of '"': result = newToken(TokenType.STRING, self.readString())
-  of '[': result = newToken(TokenType.LBRACKET, $self.ch)
-  of ']': result = newToken(TokenType.RBRACKET, $self.ch)
+  of '/':  result = newToken(TokenType.SLASH, $self.ch)
+  of '*':  result = newToken(TokenType.ASTERISC, $self.ch)
+  of '<':  result = newToken(TokenType.LT, $self.ch)
+  of '>':  result = newToken(TokenType.GT, $self.ch)
+  of '{':  result = newToken(TokenType.LBRACE, $self.ch)
+  of '}':  result = newToken(TokenType.RBRACE, $self.ch)
+  of '"':  result = newToken(TokenType.STRING, self.readString())
+  of '[':  result = newToken(TokenType.LBRACKET, $self.ch)
+  of ']':  result = newToken(TokenType.RBRACKET, $self.ch)
   of '\0': result = newToken(EOF, $'\0')
   else:
     if isLetter($self.ch):

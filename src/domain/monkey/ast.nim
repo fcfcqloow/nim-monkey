@@ -14,7 +14,7 @@ type AstException* = object of CatchableError
 type 
     Node* = ref object of RootObj
         token*: token.Token
-    Statement* = ref object of Node
+    Statement*  = ref object of Node
     Expression* = ref object of Node
     Identifier* = ref object of Expression
         value*: string
@@ -27,7 +27,7 @@ proc hash*(self: Expression): Hash = self.token.hash
 
 type
     LetStatement* = ref object of Statement
-        name*: Identifier
+        name*:  Identifier
         value*: Option[Expression]
     ReturnStatement* = ref object of Statement
         value*: Option[Expression]
@@ -48,28 +48,28 @@ type
         value*: bool
     PrefixExpression* = ref object of Expression
         operator*: string
-        right*   : Option[Expression]
+        right*:    Option[Expression]
     InfixExpression* = ref object of Expression
-        left*    : Option[Expression]
+        left*:     Option[Expression]
         operator*: string
-        right*   : Option[Expression]
+        right*:    Option[Expression]
     IfExpression* = ref object of Expression
-        condition*  : Expression
+        condition*:   Expression
         consequence*: Option[BlockStatement]
         alternative*: Option[BlockStatement]
     FunctionLiteral* = ref object of Expression
         parameters*: seq[Option[Identifier]]
-        body*      : Option[BlockStatement]
+        body*:       Option[BlockStatement]
     CallExpression* =  ref object of Expression
-        function* : Expression
+        function*:  Expression
         arguments*: seq[Expression]
     StringLiteral* = ref object of Expression
         tokenValue*: token.Token
-        value*     : string
+        value*:      string
     ArrayLiteral* = ref object of Expression
         elements*: seq[Expression]
     IndexExpression* = ref object of Expression
-        left* : Expression
+        left*:  Expression
         index*: Expression
     HashLiteral* = ref object of Expression
         pairs*: Table[Expression, Expression]

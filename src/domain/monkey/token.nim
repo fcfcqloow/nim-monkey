@@ -2,7 +2,7 @@ import tables
 
 type
   Token* = object
-    typ*: TokenType
+    typ*:     TokenType
     literal*: string
   TokenType* {.pure.} = enum 
     ILLEGAL   = "ILLEGAL"
@@ -47,18 +47,16 @@ type
 
 
 const keywords = {
-  "fn": TokenType.FUNCTION,
-  "let": TokenType.LET,
-  "true": TokenType.TRUE,
-  "false": TokenType.FALSE,
-  "if": TokenType.IF,
-  "else": TokenType.ELSE,
+  "fn":     TokenType.FUNCTION,
+  "let":    TokenType.LET,
+  "true":   TokenType.TRUE,
+  "false":  TokenType.FALSE,
+  "if":     TokenType.IF,
+  "else":   TokenType.ELSE,
   "return": TokenType.RETURN,
 }.toTable;
 
 func lookupIndent*(ident: string): TokenType =
-    if keywords.hasKey(ident): 
-      keywords[ident]
-    else:
-      TokenType.IDENT
+    if keywords.hasKey(ident): keywords[ident]
+    else:                      TokenType.IDENT
     

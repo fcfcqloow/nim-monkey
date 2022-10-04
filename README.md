@@ -5,8 +5,8 @@
 
 - [x] １章
 - [x] ２章
-- [ ] ３章
-- [ ] ４章
+- [x] ３章
+- [x] ４章
 ## 参考
 
 * https://github.com/mrsekut/monkey-nim
